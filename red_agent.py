@@ -21,56 +21,62 @@ fictional example / ideas:
 """
 
 import random
-from config import *  # contains, amongst other variables, `ASCII_TILES` (which will probably be useful here)
-
+from config import *
 
 class Agent:
     
-    # called when this agent is instanced (at the beginning of the game)
     def __init__(self, color, index):
-        self.color = color  # "blue" or "red"
-        self.index = index  # 0, 1, or 2
-    
-    # called every "agent frame"
+        self.color = color
+        self.index = index
+        self.knowledge_base = {
+            "last_seen_enemy_position": None,
+            "enemy_flag_positions": [],
+            "own_flag_position": None,
+        }
+
     def update(self, visible_world, position, can_shoot, holding_flag):
-        # display one agent's vision:
-        """if self.index == 0:
-            print("\n===========================\n")
-            for row in visible_world:
-                print(" " + " ".join(row))"""
+        # Update knowledge base based on visible_world and other parameters
+        self.update_last_seen_enemy_position(visible_world)
+        self.update_enemy_flag_positions(visible_world)
+        self.update_own_flag_position(visible_world)
+        action, direction = self.make_decision(can_shoot, holding_flag)
         
-        ## below is a very random and extremely simple implementation for testing purposes
-        
-        if can_shoot and random.random() > 0.5:
-            action = "shoot"
-        else:
-            action = "move"
-            
-        if self.color == "blue":
-            preferred_direction = "right"
-            if holding_flag:
-                preferred_direction = "left"
-        elif self.color == "red":
-            preferred_direction = "left"
-            if holding_flag:
-                preferred_direction = "right"
-        
-        r = random.random() * 1.5
-        if r < 0.25:
-            direction = "left"
-        elif r < 0.5:
-            direction = "right"
-        elif r < 0.75:
-            direction = "up"
-        elif r < 1.0:
-            direction = "down"
-        else:
-            direction = preferred_direction
-            
         return action, direction
-    
-    # called when this agent is deleted (either because this agent died, or because the game is over)
-    # `reason` can be "died" or if the game is over "blue", "red", or "tied" depending on who won
+
+    def update_last_seen_enemy_position(self, visible_world):
+        # Implement logic to update the last seen enemy position in the knowledge base
+        pass
+
+    def update_enemy_flag_positions(self, visible_world):
+        # Implement logic to update enemy flag positions in the knowledge base
+        pass
+
+    def update_own_flag_position(self, visible_world):
+        # Implement logic to update own flag position in the knowledge base
+        pass
+
+    def make_decision(self, can_shoot, holding_flag):
+        # Implement a more sophisticated decision-making process based on knowledge base
+        
+        # Example: If an enemy is seen, shoot in its direction
+        if self.knowledge_base["last_seen_enemy_position"] is not None and can_shoot:
+            action = "shoot"
+            direction = self.determine_direction_towards_enemy()
+        else:
+            # Example: Move towards the enemy flag if not holding the flag
+            action = "move"
+            direction = self.determine_direction_towards_flag(holding_flag)
+
+        return action, direction
+
+    def determine_direction_towards_enemy(self):
+        # Implement logic to determine the direction towards the last seen enemy
+        pass
+
+    def determine_direction_towards_flag(self, holding_flag):
+        # Implement logic to determine the direction towards the enemy flag or own flag
+        pass
+
     def terminate(self, reason):
         if reason == "died":
             print(self.color, self.index, "died")
