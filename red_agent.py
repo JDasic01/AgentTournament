@@ -27,11 +27,13 @@ import json
 import heapq
 import math
 
+WALL_COST = 10000  
+CAPTURE_FLAG_COST = 0
 EMPTY_STEP_COST = 1
-FEAR_OF_UNKNOWN = 6.66
+FEAR_OF_UNKNOWN = 1 
 UNKNOWN_STEP_COST = EMPTY_STEP_COST * FEAR_OF_UNKNOWN
-FEAR_OF_ENEMY = 10
-VISITED_STEP_COST = 1
+FEAR_OF_ENEMY = 8  
+SHOOTING_COST = 8  
 
 ENEMY = "blue"
 MY = "red"
@@ -54,106 +56,93 @@ class Agent:
         # Update knowledge base based on visible_world and other parameters
         position = (position[1] - 1, position[0] - 1)
         self.update_world_knowledge(visible_world, position)
-
         self.update_enemy_agent_positions(visible_world, position)
         self.update_enemy_flag_position(visible_world, position)
         self.update_my_flag_position(visible_world, position)
-        
         self.write_knowledge_base()
-        action, direction = self.make_decision(can_shoot, holding_flag, position, visible_world)
-        print("update: ", action, direction)
-        
+        # Make a decision based on agent world knowledge
+        action, direction = self.make_decision(can_shoot, holding_flag, position, self.knowledge_base["world_knowledge"])
         return action, direction
-    
-    def make_decision(self, can_shoot, holding_flag, current_position, visible_world):
-        print("Knowledge Base:", self.knowledge_base)
 
-        if not any(self.knowledge_base.values()):
+    def make_decision(self, can_shoot, holding_flag, current_position, world_knowledge):
+        target_position = (
+            self.knowledge_base["my_flag_position"][0] if holding_flag else
+            self.knowledge_base["enemy_flag_position"][0] if len(self.knowledge_base["enemy_flag_position"]) > 0 else
+            (self.knowledge_base["my_flag_position"][0][0], 0) # isti red, suprotna strana
+        )
+        shortest_path = self.astar(current_position, target_position, world_knowledge)
+        print(shortest_path)
+        if len(shortest_path) > 0:
             action = "move"
-            direction = random.choice(["up", "down", "left", "right"])
-        else:
-            enemy_flag_position = self.knowledge_base["enemy_flag_position"]
-            print("Enemy Flag Positions:", enemy_flag_position)
-
-            if enemy_flag_position:
-                target_position = enemy_flag_position[0]
-                path_found, shortest_path = self.astar(current_position, target_position, visible_world)
-
-                print("Path Found:", path_found)
-                print("Shortest Path:", shortest_path)
-
-                if not path_found or len(shortest_path) < 2:
-                    # Handle case when no path is found
-                    action = "move"
-                    direction = random.choice(["up", "down", "left", "right"])
-                else:
-                    if can_shoot and random.random() > 0.5:
-                        action = "shoot"
-                        direction = self.get_direction(current_position, shortest_path)
-                    else:
-                        action = "move"
-                        direction = self.get_direction(current_position, shortest_path)
-            else:
-                # Handle case when enemy_flag_position is empty
-                action = "move"
-                direction = random.choice(["up", "down", "left", "right"])
-
-        print("Decision:", action, direction)
+            direction = self.get_direction(current_position, shortest_path)
+        else: 
+            action, direction = self.no_path_found()
         return action, direction
 
+    def no_path_found(self):
+        action = "move"
+        direction = random.choice(["up", "down", "left", "right"])
+        return action, direction
 
-    def determine_direction_towards_enemy(self, current_position, visible_world):
-        if self.knowledge_base["enemy_agent_positions"] is not []:
-            enemy_position = self.knowledge_base["enemy_agent_positions"]
-            target_position = self.knowledge_base["my_flag_position"] if enemy_position in self.knowledge_base["enemy_flag_position"] else enemy_position
-            _, shortest_path = self.astar(current_position, target_position, visible_world)
-            direction = self.get_direction(current_position, shortest_path)
-            return direction
-
-    def determine_direction_towards_flag(self, holding_flag, current_position, visible_world):
-        target_position = self.knowledge_base["my_flag_position"] if not holding_flag else random.choice(self.knowledge_base["enemy_flag_position"])
-        _, shortest_path = self.astar(current_position, target_position, visible_world)
-        direction = self.get_direction(current_position, shortest_path)
-        return direction
-
-    def astar(self, agent_pos, target_pos, visible_world):
+    def astar(self, agent_pos, target_pos, world_knowledge):
         def is_valid(position):
             x, y = position
             return 0 <= x < HEIGHT - 2 and 0 <= y < WIDTH - 2
         
-        def heuristic(a, b):
-            return math.sqrt((b[0] - a[0])**2 + (b[1] - a[1])**2)
-
         def generate_neighbors(pos):
             row, col = pos
             neighbors = [(row + 1, col), (row - 1, col), (row, col + 1), (row, col - 1)]
             return [neighbor for neighbor in neighbors if is_valid(neighbor)]
+        
+        def return_path(came_from, start, goal):
+            path = []
+            current = goal
+            while current != start:
+                if current not in came_from:
+                    return None  # Goal is not reachable
+                path.append(current)
+                current = came_from[current]
+            path.append(start)
+            return path[::-1] 
 
-        def cost_from_const(pos, visible_world, came_from):
+        def heuristic(a, b):
+            return math.sqrt((b[0] - a[0])**2 + (b[1] - a[1])**2)
+
+        def cost_from_const(pos, world_knowledge):
             x, y = pos
-            if visible_world[x][y] == ASCII_TILES["unknown"]:
-                return 1
-            elif visible_world[x][y] == ASCII_TILES["empty"]:
-                return 2
-            elif visible_world[x][y] == ASCII_TILES["wall"]:
-                return 10000
-            elif visible_world[x][y] == ASCII_TILES[MY + "_flag"]:
-                return 3
+            if world_knowledge[x][y] == ASCII_TILES["empty"]:
+                return EMPTY_STEP_COST  
+            elif world_knowledge[x][y] == ASCII_TILES["wall"]:
+                return WALL_COST
+            elif world_knowledge[x][y] == ASCII_TILES["bullet"]:
+                return WALL_COST
+            elif world_knowledge[x][y] == ASCII_TILES["unknown"]:
+                return UNKNOWN_STEP_COST 
+            elif world_knowledge[x][y] == ASCII_TILES[ENEMY + "_agent"] or world_knowledge[x][y] == ASCII_TILES[ENEMY + "_agent_f"]:
+                return FEAR_OF_ENEMY
+            elif world_knowledge[x][y] == ASCII_TILES[MY + "_agent"] or world_knowledge[x][y] == ASCII_TILES[MY + "_agent_f"]:
+                return EMPTY_STEP_COST
+            elif world_knowledge[x][y] == ASCII_TILES["blue_flag"] :
+                return CAPTURE_FLAG_COST
+            elif world_knowledge[x][y] == ASCII_TILES["red_flag"] :
+                return CAPTURE_FLAG_COST
 
         start = agent_pos
         goal = target_pos
         open_set = []
         heapq.heappush(open_set, (0, start))
-        came_from = {}
+        came_from = {start: None}
         g_cost = {start: 0}
 
         while open_set:
             _, current_pos = heapq.heappop(open_set)
 
-            neighbors = generate_neighbors(current_pos)
+            if current_pos == goal:
+                return return_path(came_from, start, goal)
 
+            neighbors = generate_neighbors(current_pos)
             for neighbor in neighbors:
-                cost = cost_from_const(current_pos, visible_world, came_from)
+                cost = cost_from_const(neighbor, world_knowledge)
                 tentative_g_cost = g_cost[current_pos] + cost
                 if neighbor in g_cost and tentative_g_cost >= g_cost[neighbor]:
                     continue
@@ -161,9 +150,11 @@ class Agent:
                 total_cost = tentative_g_cost + heuristic(neighbor, goal)
                 heapq.heappush(open_set, (total_cost, neighbor))
                 came_from[neighbor] = current_pos
-
-        return [], [] # Target not reachable
-
+        path = return_path(came_from, start, goal)
+        if path:
+            return path
+        else: 
+            return []
     def get_direction(self, current_pos, shortest_path):
         next_pos = shortest_path[1]
         if next_pos[0] < current_pos[0]:
@@ -174,14 +165,6 @@ class Agent:
             return 'left'
         elif next_pos[1] > current_pos[1]:
             return 'right'
-
-    def reconstruct_path(self, came_from, start, goal):
-        current = goal
-        path = [current]
-        while current != start:
-            current = came_from[current]
-            path.append(current)
-        return path[::-1]
     
     def update_enemy_agent_positions(self, visible_world, position):
         memory_enemies = self.get_positions_from_world_knowledge(ASCII_TILES[ENEMY + "_agent"]) + \
