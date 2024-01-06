@@ -65,24 +65,32 @@ class Agent:
         return action, direction
 
     def make_decision(self, can_shoot, holding_flag, current_position, world_knowledge):
+        def recalculate_target_position(target_position):
+            x,y = target_position
+            if world_knowledge[x][y] != ASCII_TILES["unknown"] and world_knowledge[x][y] != ASCII_TILES[ENEMY + "_flag"]:
+                            target_position = (
+                self.knowledge_base["my_flag_position"][0] if holding_flag else
+                self.knowledge_base["enemy_flag_position"][0] if len(self.knowledge_base["enemy_flag_position"]) > 0 else
+                (self.knowledge_base["my_flag_position"][0][0], random.choice(range(WIDTH - 3)))  # if initial target position is not the flag recalculate another random one
+            )
+            return target_position
+        
         target_position = (
             self.knowledge_base["my_flag_position"][0] if holding_flag else
             self.knowledge_base["enemy_flag_position"][0] if len(self.knowledge_base["enemy_flag_position"]) > 0 else
-            (self.knowledge_base["my_flag_position"][0][0], 0) # isti red, suprotna strana
+            (self.knowledge_base["my_flag_position"][0][0], 0)  # same row, first column initially
         )
+        
+        target_position = recalculate_target_position(target_position)
         shortest_path = self.astar(current_position, target_position, world_knowledge)
-        print(shortest_path)
+        print(self.knowledge_base["my_flag_position"])
+        print(target_position)
         if len(shortest_path) > 0:
             action = "move"
             direction = self.get_direction(current_position, shortest_path)
-        else: 
-            action, direction = self.no_path_found()
         return action, direction
 
-    def no_path_found(self):
-        action = "move"
-        direction = random.choice(["up", "down", "left", "right"])
-        return action, direction
+
 
     def astar(self, agent_pos, target_pos, world_knowledge):
         def is_valid(position):
@@ -121,7 +129,7 @@ class Agent:
             elif world_knowledge[x][y] == ASCII_TILES[ENEMY + "_agent"] or world_knowledge[x][y] == ASCII_TILES[ENEMY + "_agent_f"]:
                 return FEAR_OF_ENEMY
             elif world_knowledge[x][y] == ASCII_TILES[MY + "_agent"] or world_knowledge[x][y] == ASCII_TILES[MY + "_agent_f"]:
-                return EMPTY_STEP_COST
+                return WALL_COST
             elif world_knowledge[x][y] == ASCII_TILES["blue_flag"] :
                 return CAPTURE_FLAG_COST
             elif world_knowledge[x][y] == ASCII_TILES["red_flag"] :
@@ -155,16 +163,21 @@ class Agent:
             return path
         else: 
             return []
+
     def get_direction(self, current_pos, shortest_path):
-        next_pos = shortest_path[1]
-        if next_pos[0] < current_pos[0]:
-            return 'up'
-        elif next_pos[0] > current_pos[0]:
-            return 'down'
-        elif next_pos[1] < current_pos[1]:
-            return 'left'
-        elif next_pos[1] > current_pos[1]:
-            return 'right'
+        if len(shortest_path) > 1:
+            next_pos = shortest_path[1]
+            if next_pos[0] < current_pos[0]:
+                return 'up'
+            elif next_pos[0] > current_pos[0]:
+                return 'down'
+            elif next_pos[1] < current_pos[1]:
+                return 'left'
+            elif next_pos[1] > current_pos[1]:
+                return 'right'
+        else:
+            return random.choice(["up", "down", "left", "right"])
+
     
     def update_enemy_agent_positions(self, visible_world, position):
         memory_enemies = self.get_positions_from_world_knowledge(ASCII_TILES[ENEMY + "_agent"]) + \
