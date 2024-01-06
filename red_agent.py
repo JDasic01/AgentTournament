@@ -52,6 +52,7 @@ class Agent:
 
     def update(self, visible_world, position, can_shoot, holding_flag):
         # Update knowledge base based on visible_world and other parameters
+        position = (position[1] - 1, position[0] - 1)
         self.update_world_knowledge(visible_world, position)
 
         self.update_enemy_agent_positions(visible_world, position)
@@ -118,7 +119,7 @@ class Agent:
     def astar(self, agent_pos, target_pos, visible_world):
         def is_valid(position):
             x, y = position
-            return 0 <= x < HEIGHT and 0 <= y < WIDTH
+            return 0 <= x < HEIGHT - 2 and 0 <= y < WIDTH - 2
         
         def heuristic(a, b):
             return math.sqrt((b[0] - a[0])**2 + (b[1] - a[1])**2)
@@ -183,11 +184,13 @@ class Agent:
         return path[::-1]
     
     def update_enemy_agent_positions(self, visible_world, position):
-        memory_enemies = self.get_positions_from_world_knowledge(ASCII_TILES[ENEMY + "_agent"])
+        memory_enemies = self.get_positions_from_world_knowledge(ASCII_TILES[ENEMY + "_agent"]) + \
+            self.get_positions_from_world_knowledge(ASCII_TILES[ENEMY + "_agent_f"])
 
         if memory_enemies:
             if len(memory_enemies) > 3:
-                visible_enemies = self.get_positions_from_visible_world(visible_world, position, ASCII_TILES[ENEMY + "_agent"])
+                visible_enemies = self.get_positions_from_visible_world(visible_world, position, ASCII_TILES[ENEMY + "_agent"]) + \
+                    self.get_positions_from_visible_world(visible_world, position, ASCII_TILES[ENEMY + "_agent_f"])
 
                 self.knowledge_base["enemy_agent_positions"] = visible_enemies
                 self.remove_incorrect_positions(memory_enemies, visible_enemies)
@@ -195,8 +198,11 @@ class Agent:
                 self.knowledge_base["enemy_agent_positions"] = memory_enemies
 
     def update_enemy_flag_position(self, visible_world, position):
-        memory_flags = self.get_positions_from_world_knowledge(ASCII_TILES[ENEMY + "_flag"])
-        visible_flags = self.get_positions_from_visible_world(visible_world, position, ASCII_TILES[ENEMY + "_flag"])
+        memory_flags = self.get_positions_from_world_knowledge(ASCII_TILES[ENEMY + "_flag"]) + \
+            self.get_positions_from_world_knowledge(ASCII_TILES[MY + "_agent_f"])
+        
+        visible_flags = self.get_positions_from_visible_world(visible_world, position, ASCII_TILES[ENEMY + "_flag"]) + \
+            self.get_positions_from_visible_world(visible_world, position, ASCII_TILES[MY + "_agent_f"])
 
         if visible_flags:
             self.knowledge_base["enemy_flag_position"] = visible_flags
@@ -206,8 +212,11 @@ class Agent:
             self.knowledge_base["enemy_flag_position"] = memory_flags
 
     def update_my_flag_position(self, visible_world, position):
-        memory_flags = self.get_positions_from_world_knowledge(ASCII_TILES[MY + "_flag"])
-        visible_flags = self.get_positions_from_visible_world(visible_world, position, ASCII_TILES[MY + "_flag"])
+        memory_flags = self.get_positions_from_world_knowledge(ASCII_TILES[MY + "_flag"]) + \
+            self.get_positions_from_world_knowledge(ASCII_TILES[ENEMY + "_agent_f"])
+        
+        visible_flags = self.get_positions_from_visible_world(visible_world, position, ASCII_TILES[MY + "_flag"]) + \
+            self.get_positions_from_visible_world(visible_world, position, ASCII_TILES[ENEMY + "_agent_f"])
 
         if visible_flags:
             self.knowledge_base["my_flag_position"] = visible_flags
@@ -224,8 +233,8 @@ class Agent:
 
         for i in range(len(visible_world)):
             for j in range(len(visible_world[0])):
-                x = i - 5 + position[0]
-                y = j - 5 + position[1]
+                x = i - 4 + position[1]
+                y = j - 4 + position[0]
                 if (visible_world[j][i] != ASCII_TILES["unknown"]
                     and x in range(len(self.knowledge_base["world_knowledge"][0]))
                     and y in range(len(self.knowledge_base["world_knowledge"]))):
@@ -245,7 +254,7 @@ class Agent:
         for row_idx, row in enumerate(rows):
             for col_idx, char in enumerate(row):
                 if char == ascii_char:
-                    positions.append((row_idx - 5 + position[1], col_idx - 5 + position[0]))
+                    positions.append((row_idx - 4 + position[0], col_idx - 4 + position[1]))
 
         return positions
     
