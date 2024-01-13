@@ -49,6 +49,7 @@ class Agent:
             "enemy_flag_position": [],
             "my_flag_position": [],
             "guarding_agent_position": None,
+            "target_positions": {},
             "world_knowledge": [[ASCII_TILES["unknown"] for _i in range(WIDTH - 2)] for _j in range(HEIGHT - 2)]
         }
         self.write_knowledge_base()
@@ -61,34 +62,57 @@ class Agent:
         self.update_enemy_flag_position(visible_world, position)
         self.update_my_flag_position(visible_world, position)
         self.update_guarding_agent_position(visible_world, position)
-        self.write_knowledge_base()
+        
         # Make a decision based on agent world knowledge
         action, direction = self.make_decision(can_shoot, holding_flag, position, self.knowledge_base["world_knowledge"])
+
+        self.write_knowledge_base()
         print(action)
         return action, direction
 
     def make_decision(self, can_shoot, holding_flag, current_position, world_knowledge):
-        def recalculate_target_position(target_position):
+        def recalculate_target_position(current_position):
             if current_position in self.knowledge_base["guarding_agent_position"]:
                 target_position = self.knowledge_base["my_flag_position"][0]
+                target_sign = ASCII_TILES[MY + "_flag"]
             else:
-                target_position = (
-                    self.knowledge_base["my_flag_position"][0] if holding_flag else
-                    self.knowledge_base["enemy_flag_position"][0] if len(self.knowledge_base["enemy_flag_position"]) > 0 else
-                    (self.knowledge_base["my_flag_position"][0][0], 0)  # same row, first column initially
-                )
-            return target_position
+                if holding_flag:
+                    target_position = self.knowledge_base["my_flag_position"][0]
+                    target_sign = ASCII_TILES[MY + "_flag"]
+                elif len(self.knowledge_base["enemy_flag_position"]) > 0:
+                   target_position = self.knowledge_base["enemy_flag_position"][0]
+                   target_sign = ASCII_TILES[ENEMY + "_flag"]
+                else:
+                    unknown = self.get_positions_from_world_knowledge(ASCII_TILES["unknown"])
+                    # distance = [math.sqrt((pos[0]-current_position[0])**2 + (pos[1]-current_position[1])**2) +
+                    #             math.sqrt((pos[0]-self.knowledge_base["my_flag_position"][0][0])**2 + 
+                    #                       (pos[1]-self.knowledge_base["my_flag_position"][0][1])**2)
+                    #             for pos in unknown]
+                    # furthest_unknown_pos = distance.index(max(distance))
+                    # target_position = unknown[furthest_unknown_pos]
+                    target_position = random.choice(unknown)
+                    target_sign = ASCII_TILES["unknown"]
+                    print("from unknown " + str(target_position))
+            return target_position, target_sign
         
-        if current_position in self.knowledge_base["guarding_agent_position"]:
-            target_position = self.knowledge_base["my_flag_position"][0]
+        target_position = self.knowledge_base["target_positions"].get(str(self.index) + "_pos")
+        target_sign = self.knowledge_base["target_positions"].get(str(self.index) + "_sign")
+        print("before update " + str(target_position))
+
+        if target_position:
+            if [target_position] != self.knowledge_base["enemy_flag_position"] and \
+                self.knowledge_base["world_knowledge"][target_position[0]][target_position[1]] != target_sign:
+                target_position, target_sign  = recalculate_target_position(current_position)
+                self.knowledge_base["target_positions"][str(self.index) + "_pos"] = target_position
+                self.knowledge_base["target_positions"][str(self.index) + "_sign"] = target_sign
+
+            target_position = tuple(target_position)
         else:
-            target_position = (
-                self.knowledge_base["my_flag_position"][0] if holding_flag else
-                self.knowledge_base["enemy_flag_position"][0] if len(self.knowledge_base["enemy_flag_position"]) > 0 else
-                (self.knowledge_base["my_flag_position"][0][0], 0)  # same row, first column initially
-            )
+            target_position, target_sign = recalculate_target_position(current_position)
+            self.knowledge_base["target_positions"][str(self.index) + "_pos"] = target_position
+            self.knowledge_base["target_positions"][str(self.index) + "_sign"] = target_sign
         
-        target_position = recalculate_target_position(target_position)
+        print("after update" + str(target_position))
         shortest_path = self.astar(current_position, target_position, world_knowledge)
         if len(shortest_path) > 0:
             action, direction = self.get_action_and_direction(current_position, shortest_path, can_shoot)
@@ -167,33 +191,77 @@ class Agent:
             return []
 
     def get_action_and_direction(self, current_pos, shortest_path, can_shoot):
-        def no_enemy_in_row_or_col():
-        # Implement the logic to check if there is no enemy in the same row or column
-            return not (self.knowledge_base["enemy_agent_positions"] and any(
-                pos[0] == self.knowledge_base["guarding_agent_position"][0][0] or  # Same row
-                pos[1] == self.knowledge_base["guarding_agent_position"][0][1]     # Same column
-                for pos in self.knowledge_base["enemy_agent_positions"]
-            ))
+        def is_enemy_in_next_row_or_col(current_pos):
+            directions = {"left":False, "right":False, "up":False, "down":False}
+            for pos in self.knowledge_base["enemy_agent_positions"]:
+                if pos[0] + 1 == current_pos[0]:
+                    directions["right"] = True
+                elif pos[0] - 1 == current_pos[0]:
+                    directions["left"] = True
+                elif pos[1] + 1 == current_pos[0]:
+                    directions["down"] = True
+                elif pos[1] - 1 == current_pos[0]:
+                    directions["up"] = True
+            return directions
+
+        def direction_towards_enemy(current_pos):
+            directions = {"row":[], "col":[]}
+            for pos in self.knowledge_base["enemy_agent_positions"]:
+                if pos[0] == current_pos[0]:
+                    if pos[1] > current_pos[1]:
+                        directions["row"].append("right")
+                    else:
+                        directions["row"].append("left")
+                elif pos[1] == current_pos[1]:
+                    if pos[0] > current_pos[0]:
+                        directions["col"].append("down")
+                    else:
+                        directions["col"].append("up")
+            return directions
         
-        def direction_towards_enemy():
-            # Implement the logic to check if there is no enemy in the same row or column
-            return "up"
-        
+        directions = direction_towards_enemy(current_pos)
+        next_directions = is_enemy_in_next_row_or_col(current_pos)
+
         if len(shortest_path) > 1:
             next_pos = shortest_path[1]
-            if no_enemy_in_row_or_col():
-                if next_pos[0] < current_pos[0]:
+            if (len(directions["row"]) > 0 or len(directions["col"]) > 0) and can_shoot:
+                if len(directions["col"]) == 0:
+                    if len(directions["row"]) > 1:
+                        return random.choice([('move', 'up'), ('move', 'down')])
+                    else:
+                        return 'shoot', directions["row"][0]               
+                elif len(directions["row"]) == 0:
+                    if len(directions["col"]) > 1:
+                        return random.choice([('move', 'left'), ('move', 'right')])
+                    else:
+                        return 'shoot', directions["col"][0] 
+                else:
+                    return 'shoot', directions["row"][0]
+                
+            elif next_pos[0] < current_pos[0]:
+                if next_directions['up']:
+                    return random.choice([('move', 'left'), ('move', 'right')])
+                else:
                     return 'move', 'up'
-                elif next_pos[0] > current_pos[0]:
+            elif next_pos[0] > current_pos[0]:
+                if next_directions['down']:
+                    return random.choice([('move', 'left'), ('move', 'right')])
+                else:
                     return 'move', 'down'
-                elif next_pos[1] < current_pos[1]:
+            elif next_pos[1] < current_pos[1]:
+                if next_directions['left']:
+                    return random.choice([('move', 'up'), ('move', 'down')])
+                else:
                     return 'move', 'left'
-                elif next_pos[1] > current_pos[1]:
+            elif next_pos[1] > current_pos[1]:
+                if next_directions['right']:
+                    return random.choice([('move', 'up'), ('move', 'down')])
+                else:
                     return 'move', 'right'
-            elif can_shoot:
-                return 'shoot', direction_towards_enemy()
+            
             else:
                 return random.choice([('move', 'up'), ('move', 'down'), ('move', 'left'), ('move', 'right')])
+                                                
         else:
             return random.choice([('move', 'up'), ('move', 'down'), ('move', 'left'), ('move', 'right')])
     
@@ -254,6 +322,7 @@ class Agent:
         with open(MEMORY_FILE, "r") as openfile:
             knowledge_base = json.load(openfile)
         self.knowledge_base["world_knowledge"] = knowledge_base["world_knowledge"]
+        self.knowledge_base["target_positions"] = knowledge_base["target_positions"]
 
         for i in range(len(visible_world)):
             for j in range(len(visible_world[0])):
