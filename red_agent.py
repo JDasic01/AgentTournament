@@ -91,7 +91,7 @@ class Agent:
         target_position = recalculate_target_position(target_position)
         shortest_path = self.astar(current_position, target_position, world_knowledge)
         if len(shortest_path) > 0:
-            action, direction = self.get_action_and_direction(current_position, shortest_path)
+            action, direction = self.get_action_and_direction(current_position, shortest_path, can_shoot)
         return action, direction
 
     def astar(self, agent_pos, target_pos, world_knowledge):
@@ -166,7 +166,7 @@ class Agent:
         else: 
             return []
 
-    def get_action_and_direction(self, current_pos, shortest_path):
+    def get_action_and_direction(self, current_pos, shortest_path, can_shoot):
         def no_enemy_in_row_or_col():
         # Implement the logic to check if there is no enemy in the same row or column
             return not (self.knowledge_base["enemy_agent_positions"] and any(
@@ -176,7 +176,7 @@ class Agent:
             ))
         
         def direction_towards_enemy():
-        # Implement the logic to check if there is no enemy in the same row or column
+            # Implement the logic to check if there is no enemy in the same row or column
             return "up"
         
         if len(shortest_path) > 1:
@@ -190,8 +190,10 @@ class Agent:
                     return 'move', 'left'
                 elif next_pos[1] > current_pos[1]:
                     return 'move', 'right'
-            else:
+            elif can_shoot:
                 return 'shoot', direction_towards_enemy()
+            else:
+                return random.choice([('move', 'up'), ('move', 'down'), ('move', 'left'), ('move', 'right')])
         else:
             return random.choice([('move', 'up'), ('move', 'down'), ('move', 'left'), ('move', 'right')])
     
