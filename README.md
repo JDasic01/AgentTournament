@@ -16,3 +16,7 @@ directions towards enemy treba vracat up, down, left, right ovisno o tome gdje j
             # Implement the logic to check if there is no enemy in the same row or column
             return "up"
 ```
+
+
+ako izmisljeni target nije blizu protivnicke zastave, krenu se cudno micat jer se racuna svaki put novi. treba ispravit da nakon sto se jednom target generira, ne generira se ponovno.
+Problems tim: ako je targetu visible world i znamo da nije protivnicka zastava, nema smisla ic do targeta, odnosno ne mozemo samo stavit until reached jer gubimo poteze bezveze
