@@ -62,7 +62,6 @@ class Agent:
         self.update_my_flag_position(visible_world, position)
         self.update_guarding_agent_position(visible_world, position)
         self.write_knowledge_base()
-        print(self.knowledge_base)
         # Make a decision based on agent world knowledge
         action, direction = self.make_decision(can_shoot, holding_flag, position, self.knowledge_base["world_knowledge"])
         return action, direction
@@ -70,24 +69,30 @@ class Agent:
     def make_decision(self, can_shoot, holding_flag, current_position, world_knowledge):
         def recalculate_target_position(target_position):
             x,y = target_position
-            if world_knowledge[x][y] != ASCII_TILES["unknown"] and world_knowledge[x][y] != ASCII_TILES[ENEMY + "_flag"]:
-                            target_position = (
+            if current_position in self.knowledge_base["guarding_agent_position"]:
+                target_position = self.knowledge_base["my_flag_position"][0]
+            else:
+                target_position = (
+                    self.knowledge_base["my_flag_position"][0] if holding_flag else
+                    self.knowledge_base["enemy_flag_position"][0] if len(self.knowledge_base["enemy_flag_position"]) > 0 else
+                    (self.knowledge_base["my_flag_position"][0][0], 0)  # same row, first column initially
+                )
+            return target_position
+        print("curr",current_position)
+        print("guard",self.knowledge_base["guarding_agent_position"][0])
+        print("flag",self.knowledge_base["my_flag_position"][0])
+        if current_position in self.knowledge_base["guarding_agent_position"]:
+            target_position = self.knowledge_base["my_flag_position"][0]
+        else:
+            target_position = (
                 self.knowledge_base["my_flag_position"][0] if holding_flag else
                 self.knowledge_base["enemy_flag_position"][0] if len(self.knowledge_base["enemy_flag_position"]) > 0 else
-                (self.knowledge_base["my_flag_position"][0][0], random.choice(range(WIDTH - 3)))  # if initial target position is not the flag recalculate another random one
+                (self.knowledge_base["my_flag_position"][0][0], 0)  # same row, first column initially
             )
-            return target_position
-        
-        target_position = (
-            self.knowledge_base["my_flag_position"][0] if holding_flag else
-            self.knowledge_base["enemy_flag_position"][0] if len(self.knowledge_base["enemy_flag_position"]) > 0 else
-            (self.knowledge_base["my_flag_position"][0][0], 0)  # same row, first column initially
-        )
         
         target_position = recalculate_target_position(target_position)
+        print("target", target_position)
         shortest_path = self.astar(current_position, target_position, world_knowledge)
-        print(self.knowledge_base["my_flag_position"])
-        print(target_position)
         if len(shortest_path) > 0:
             action = "move"
             direction = self.get_direction(current_position, shortest_path)
