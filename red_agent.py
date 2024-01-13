@@ -48,6 +48,7 @@ class Agent:
             "enemy_agent_positions": [],
             "enemy_flag_position": [],
             "my_flag_position": [],
+            "guarding_agent_position": None,
             "world_knowledge": [[ASCII_TILES["unknown"] for _i in range(WIDTH - 2)] for _j in range(HEIGHT - 2)]
         }
         self.write_knowledge_base()
@@ -59,7 +60,9 @@ class Agent:
         self.update_enemy_agent_positions(visible_world, position)
         self.update_enemy_flag_position(visible_world, position)
         self.update_my_flag_position(visible_world, position)
+        self.update_guarding_agent_position(visible_world, position)
         self.write_knowledge_base()
+        print(self.knowledge_base)
         # Make a decision based on agent world knowledge
         action, direction = self.make_decision(can_shoot, holding_flag, position, self.knowledge_base["world_knowledge"])
         return action, direction
@@ -89,8 +92,6 @@ class Agent:
             action = "move"
             direction = self.get_direction(current_position, shortest_path)
         return action, direction
-
-
 
     def astar(self, agent_pos, target_pos, world_knowledge):
         def is_valid(position):
@@ -220,6 +221,16 @@ class Agent:
                 self.remove_incorrect_positions(memory_flags, visible_flags)
         elif memory_flags:
             self.knowledge_base["my_flag_position"] = memory_flags
+
+    def update_guarding_agent_position(self, visible_world, position):
+        if self.knowledge_base["guarding_agent_position"] is None:
+            memory_agents = self.get_positions_from_world_knowledge(ASCII_TILES[MY + "_agent"]) 
+            my_flags = self.get_positions_from_visible_world(visible_world, position, ASCII_TILES[MY + "_agent_f"])
+
+            if my_flags:
+                self.knowledge_base["guarding_agent_position"] = [(my_flags[0][0], my_flags[0][1] + 1)]
+            else:
+                self.knowledge_base["guarding_agent_position"] = [memory_agents[1]]
 
     def update_world_knowledge(self, visible_world, position):
         # read latest knowledge base for max information
