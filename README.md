@@ -7,8 +7,8 @@ directions towards enemy treba vracat up, down, left, right ovisno o tome gdje j
         def no_enemy_in_row_or_col():
         # Implement the logic to check if there is no enemy in the same row or column
             return not (self.knowledge_base["enemy_agent_positions"] and any(
-                pos[0] == self.knowledge_base["guarding_agent_position"][0][0] or  # Same row
-                pos[1] == self.knowledge_base["guarding_agent_position"][0][1]     # Same column
+                pos[0] == self.knowledge_base["guarding_agent_position"][0][0] or  # Same row, **ovo je krivo, samo je za primjer**
+                pos[1] == self.knowledge_base["guarding_agent_position"][0][1]     # Same column **ovo je krivo, samo je za primjer**
                 for pos in self.knowledge_base["enemy_agent_positions"]
             ))
         
