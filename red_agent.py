@@ -67,12 +67,14 @@ class Agent:
         action, direction = self.make_decision(can_shoot, holding_flag, position, self.knowledge_base["world_knowledge"])
 
         self.write_knowledge_base()
-        print(action)
+        print("index: " + str(self.index) + "   current pos: " + str(position) + "    target pos: " + 
+              str(self.knowledge_base["target_positions"].get(str(self.index) + "_pos")) +
+              "     move: " + str(action) + "    direciton: " + str(direction))
         return action, direction
 
     def make_decision(self, can_shoot, holding_flag, current_position, world_knowledge):
         def recalculate_target_position(current_position):
-            if current_position in self.knowledge_base["guarding_agent_position"]:
+            if current_position == self.knowledge_base["guarding_agent_position"]:
                 target_position = self.knowledge_base["my_flag_position"][0]
                 target_sign = ASCII_TILES[MY + "_flag"]
             else:
@@ -84,24 +86,26 @@ class Agent:
                    target_sign = ASCII_TILES[ENEMY + "_flag"]
                 else:
                     unknown = self.get_positions_from_world_knowledge(ASCII_TILES["unknown"])
-                    # distance = [math.sqrt((pos[0]-current_position[0])**2 + (pos[1]-current_position[1])**2) +
-                    #             math.sqrt((pos[0]-self.knowledge_base["my_flag_position"][0][0])**2 + 
-                    #                       (pos[1]-self.knowledge_base["my_flag_position"][0][1])**2)
-                    #             for pos in unknown]
-                    # furthest_unknown_pos = distance.index(max(distance))
-                    # target_position = unknown[furthest_unknown_pos]
-                    target_position = random.choice(unknown)
+                    distance = [abs(pos[0]-current_position[0]) + abs(pos[1]-current_position[1]) +
+                                abs(pos[0]-self.knowledge_base["my_flag_position"][0][0]) + 
+                                abs(pos[1]-self.knowledge_base["my_flag_position"][0][1])
+                                for pos in unknown]
+                    furthest_unknown_pos = distance.index(max(distance))
+                    target_position = unknown[furthest_unknown_pos]
+                    # target_position = random.choice(unknown)
                     target_sign = ASCII_TILES["unknown"]
-                    print("from unknown " + str(target_position))
             return target_position, target_sign
         
         target_position = self.knowledge_base["target_positions"].get(str(self.index) + "_pos")
         target_sign = self.knowledge_base["target_positions"].get(str(self.index) + "_sign")
-        print("before update " + str(target_position))
 
         if target_position:
             if [target_position] != self.knowledge_base["enemy_flag_position"] and \
-                self.knowledge_base["world_knowledge"][target_position[0]][target_position[1]] != target_sign:
+                len(self.knowledge_base["enemy_flag_position"]) > 0:
+                target_position, target_sign  = recalculate_target_position(current_position)
+                self.knowledge_base["target_positions"][str(self.index) + "_pos"] = target_position
+                self.knowledge_base["target_positions"][str(self.index) + "_sign"] = target_sign
+            elif self.knowledge_base["world_knowledge"][target_position[0]][target_position[1]] != target_sign:
                 target_position, target_sign  = recalculate_target_position(current_position)
                 self.knowledge_base["target_positions"][str(self.index) + "_pos"] = target_position
                 self.knowledge_base["target_positions"][str(self.index) + "_sign"] = target_sign
@@ -112,7 +116,6 @@ class Agent:
             self.knowledge_base["target_positions"][str(self.index) + "_pos"] = target_position
             self.knowledge_base["target_positions"][str(self.index) + "_sign"] = target_sign
         
-        print("after update" + str(target_position))
         shortest_path = self.astar(current_position, target_position, world_knowledge)
         if len(shortest_path) > 0:
             action, direction = self.get_action_and_direction(current_position, shortest_path, can_shoot)
@@ -137,7 +140,7 @@ class Agent:
                 path.append(current)
                 current = came_from[current]
             path.append(start)
-            return path[::-1] 
+            return path[::-1]
 
         def heuristic(a, b):
             return math.sqrt((b[0] - a[0])**2 + (b[1] - a[1])**2)
@@ -155,11 +158,11 @@ class Agent:
             elif world_knowledge[x][y] == ASCII_TILES[ENEMY + "_agent"] or world_knowledge[x][y] == ASCII_TILES[ENEMY + "_agent_f"]:
                 return FEAR_OF_ENEMY
             elif world_knowledge[x][y] == ASCII_TILES[MY + "_agent"] or world_knowledge[x][y] == ASCII_TILES[MY + "_agent_f"]:
+                return EMPTY_STEP_COST ## WALL_COST
+            elif world_knowledge[x][y] == ASCII_TILES[ENEMY + "_flag"] :
+                return CAPTURE_FLAG_COST
+            elif world_knowledge[x][y] == ASCII_TILES[MY + "_flag"] :
                 return WALL_COST
-            elif world_knowledge[x][y] == ASCII_TILES["blue_flag"] :
-                return CAPTURE_FLAG_COST
-            elif world_knowledge[x][y] == ASCII_TILES["red_flag"] :
-                return CAPTURE_FLAG_COST
 
         start = agent_pos
         goal = target_pos
@@ -207,7 +210,6 @@ class Agent:
             return directions
         
         directions = direction_towards_enemy(current_pos)
-
 
         if len(shortest_path) > 1:
             next_pos = shortest_path[1]
@@ -280,14 +282,21 @@ class Agent:
             self.knowledge_base["my_flag_position"] = memory_flags
 
     def update_guarding_agent_position(self, visible_world, position):
-        if self.knowledge_base["guarding_agent_position"] is None:
-            memory_agents = self.get_positions_from_world_knowledge(ASCII_TILES[MY + "_agent"]) 
-            my_flags = self.get_positions_from_visible_world(visible_world, position, ASCII_TILES[MY + "_agent_f"])
+        memory_agents = self.get_positions_from_world_knowledge(ASCII_TILES[MY + "_agent"])
+        print("broj agenata: " + str(len(memory_agents)))
+        if len(memory_agents) == 1:
+            self.knowledge_base["guarding_agent_position"] = None
+        elif self.knowledge_base["guarding_agent_position"] is None or not self.knowledge_base["guarding_agent_position"] in memory_agents:
+            my_flags = self.get_positions_from_world_knowledge(ASCII_TILES[MY + "_flag"])
 
             if my_flags:
-                self.knowledge_base["guarding_agent_position"] = [(my_flags[0][0], my_flags[0][1] + 1)]
+                distance = [abs(pos[0]-my_flags[0][0]) + 
+                            abs(pos[1]-my_flags[0][1])
+                            for pos in memory_agents]
+                closest_agent = distance.index(min(distance))
+                self.knowledge_base["guarding_agent_position"] = memory_agents[closest_agent]
             else:
-                self.knowledge_base["guarding_agent_position"] = [memory_agents[1]]
+                self.knowledge_base["guarding_agent_position"] = memory_agents[1]
 
     def update_world_knowledge(self, visible_world, position):
         # read latest knowledge base for max information
