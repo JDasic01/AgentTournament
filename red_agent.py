@@ -32,8 +32,8 @@ CAPTURE_FLAG_COST = 0
 EMPTY_STEP_COST = 1
 FEAR_OF_UNKNOWN = 1 
 UNKNOWN_STEP_COST = EMPTY_STEP_COST * FEAR_OF_UNKNOWN
-FEAR_OF_ENEMY = 8  
-SHOOTING_COST = 8  
+FEAR_OF_ENEMY = 8 
+SHOOTING_COST = 8
 
 ENEMY = "blue"
 MY = "red"
@@ -44,6 +44,7 @@ class Agent:
     def __init__(self, color, index):
         self.color = color
         self.index = index
+        self.positon = None
         self.knowledge_base = {
             "enemy_agent_positions": [],
             "enemy_flag_position": [],
@@ -57,6 +58,7 @@ class Agent:
     def update(self, visible_world, position, can_shoot, holding_flag):
         # Update knowledge base based on visible_world and other parameters
         position = (position[1] - 1, position[0] - 1)
+        self.position = position
         self.update_world_knowledge(visible_world, position)
         self.update_enemy_agent_positions(visible_world, position)
         self.update_enemy_flag_position(visible_world, position)
@@ -75,7 +77,7 @@ class Agent:
 
     def make_decision(self, can_shoot, holding_flag, current_position, world_knowledge, visible_world):
         def recalculate_target_position(current_position):
-            if current_position == self.knowledge_base["guarding_agent_position"]:
+            if self.knowledge_base["guarding_agent_position"] and current_position == self.knowledge_base["guarding_agent_position"]:
                 target_position = self.knowledge_base["my_flag_position"][0]
                 target_sign = ASCII_TILES[MY + "_flag"]
             else:
@@ -91,9 +93,8 @@ class Agent:
                                 abs(pos[0]-self.knowledge_base["my_flag_position"][0][0]) + 
                                 abs(pos[1]-self.knowledge_base["my_flag_position"][0][1])
                                 for pos in unknown]
-                    furthest_unknown_pos = distance.index(max(distance))
-                    target_position = unknown[furthest_unknown_pos]
-                    # target_position = random.choice(unknown)
+                    indices = [i for i, x in enumerate(distance) if x == max(distance)]
+                    target_position = unknown[random.choice(indices)]
                     target_sign = ASCII_TILES["unknown"]
             return target_position, target_sign
         
@@ -243,11 +244,11 @@ class Agent:
             if pos1[0] == pos2[0]:
                 start_col = min(pos1[1], pos2[1])
                 end_col = max(pos1[1], pos2[1])
-                return all(is_valid_position((pos1[0], col)) and visible_world[pos1[0]][col] != 'W' for col in range(start_col + 1, end_col))
+                return all(is_valid_position((pos1[0], col)) and visible_world[col][pos1[0]] != ASCII_TILES["wall"] for col in range(start_col + 1, end_col))
             elif pos1[1] == pos2[1]:
                 start_row = min(pos1[0], pos2[0])
                 end_row = max(pos1[0], pos2[0])
-                return all(is_valid_position((row, pos1[1])) and visible_world[row][pos1[1]] != 'W' for row in range(start_row + 1, end_row))
+                return all(is_valid_position((row, pos1[1])) and visible_world[pos1[1]][row] != ASCII_TILES["wall"] for row in range(start_row + 1, end_row))
             else:
                 return False
 
@@ -286,8 +287,7 @@ class Agent:
             self.knowledge_base["enemy_flag_position"] = memory_flags
 
     def update_my_flag_position(self, visible_world, position):
-        memory_flags = self.get_positions_from_world_knowledge(ASCII_TILES[MY + "_flag"]) + \
-            self.get_positions_from_world_knowledge(ASCII_TILES[ENEMY + "_agent_f"])
+        memory_flags = self.get_positions_from_world_knowledge(ASCII_TILES[MY + "_flag"])
         
         visible_flags = self.get_positions_from_visible_world(visible_world, position, ASCII_TILES[MY + "_flag"]) + \
             self.get_positions_from_visible_world(visible_world, position, ASCII_TILES[ENEMY + "_agent_f"])
@@ -300,10 +300,15 @@ class Agent:
             self.knowledge_base["my_flag_position"] = memory_flags
 
     def update_guarding_agent_position(self, visible_world, position):
-        memory_agents = self.get_positions_from_world_knowledge(ASCII_TILES[MY + "_agent"])
+        memory_agents = self.get_positions_from_world_knowledge(ASCII_TILES[MY + "_agent"]) + \
+            self.get_positions_from_world_knowledge(ASCII_TILES[MY + "_agent_f"])
+        
         print("broj agenata: " + str(len(memory_agents)))
-        if len(memory_agents) <= 1:
+        if len(memory_agents) < 2:
             self.knowledge_base["guarding_agent_position"] = None
+            for key, value in self.knowledge_base["target_positions"].items():
+                if value in self.knowledge_base["my_flag_position"]:
+                    self.knowledge_base[key.replace("pos", "sign")] = ASCII_TILES["empty"]
         elif self.knowledge_base["guarding_agent_position"] is None or not self.knowledge_base["guarding_agent_position"] in memory_agents:
             my_flags = self.get_positions_from_world_knowledge(ASCII_TILES[MY + "_flag"])
 
@@ -362,8 +367,11 @@ class Agent:
     
     def remove_incorrect_positions(self, list_1, list_2):
         for pos in list(set(list_1).difference(list_2)):
-                    self.knowledge_base["world_knowledge"][pos[0]][pos[1]] = ASCII_TILES["empty"]
+            self.knowledge_base["world_knowledge"][pos[0]][pos[1]] = ASCII_TILES["empty"]
 
     def terminate(self, reason):
         if reason == "died":
+            x, y = self.position
+            self.knowledge_base["world_knowledge"][x][y] = ASCII_TILES["empty"]
+            self.write_knowledge_base()
             print(self.color, self.index, "died")
