@@ -67,6 +67,7 @@ class Agent:
         action, direction = self.make_decision(can_shoot, holding_flag, position, self.knowledge_base["world_knowledge"], visible_world)
 
         self.write_knowledge_base()
+        print(self.knowledge_base["enemy_flag_position"])
         print("index: " + str(self.index) + "   current pos: " + str(position) + "    target pos: " + 
               str(self.knowledge_base["target_positions"].get(str(self.index) + "_pos")) +
               "     move: " + str(action) + "    direciton: " + str(direction))
@@ -273,11 +274,9 @@ class Agent:
                 self.knowledge_base["enemy_agent_positions"] = memory_enemies
 
     def update_enemy_flag_position(self, visible_world, position):
-        memory_flags = self.get_positions_from_world_knowledge(ASCII_TILES[ENEMY + "_flag"]) + \
-            self.get_positions_from_world_knowledge(ASCII_TILES[MY + "_agent_f"])
+        memory_flags = self.get_positions_from_world_knowledge(ASCII_TILES[ENEMY + "_flag"])
         
-        visible_flags = self.get_positions_from_visible_world(visible_world, position, ASCII_TILES[ENEMY + "_flag"]) + \
-            self.get_positions_from_visible_world(visible_world, position, ASCII_TILES[MY + "_agent_f"])
+        visible_flags = self.get_positions_from_visible_world(visible_world, position, ASCII_TILES[ENEMY + "_flag"])
 
         if visible_flags:
             self.knowledge_base["enemy_flag_position"] = visible_flags
