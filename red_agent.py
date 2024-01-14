@@ -64,7 +64,7 @@ class Agent:
         self.update_guarding_agent_position(visible_world, position)
         
         # Make a decision based on agent world knowledge
-        action, direction = self.make_decision(can_shoot, holding_flag, position, self.knowledge_base["world_knowledge"])
+        action, direction = self.make_decision(can_shoot, holding_flag, position, self.knowledge_base["world_knowledge"], visible_world)
 
         self.write_knowledge_base()
         print("index: " + str(self.index) + "   current pos: " + str(position) + "    target pos: " + 
@@ -72,7 +72,7 @@ class Agent:
               "     move: " + str(action) + "    direciton: " + str(direction))
         return action, direction
 
-    def make_decision(self, can_shoot, holding_flag, current_position, world_knowledge):
+    def make_decision(self, can_shoot, holding_flag, current_position, world_knowledge, visible_world):
         def recalculate_target_position(current_position):
             if current_position == self.knowledge_base["guarding_agent_position"]:
                 target_position = self.knowledge_base["my_flag_position"][0]
@@ -118,7 +118,7 @@ class Agent:
         
         shortest_path = self.astar(current_position, target_position, world_knowledge)
         if len(shortest_path) > 0:
-            action, direction = self.get_action_and_direction(current_position, shortest_path, can_shoot)
+            action, direction = self.get_action_and_direction(current_position, shortest_path, can_shoot, visible_world)
         return action, direction
 
     def astar(self, agent_pos, target_pos, world_knowledge):
@@ -193,51 +193,70 @@ class Agent:
         else: 
             return []
 
-    def get_action_and_direction(self, current_pos, shortest_path, can_shoot):
+    def get_action_and_direction(self, current_pos, shortest_path, can_shoot, visible_world):
         def direction_towards_enemy(current_pos):
-            directions = {"row":[], "col":[]}
+            directions = {"row": [], "col": []}
             for pos in self.knowledge_base["enemy_agent_positions"]:
                 if pos[0] == current_pos[0]:
-                    if pos[1] > current_pos[1]:
-                        directions["row"].append("right")
-                    else:
-                        directions["row"].append("left")
+                    directions["row"].append("right" if pos[1] > current_pos[1] else "left")
                 elif pos[1] == current_pos[1]:
-                    if pos[0] > current_pos[0]:
-                        directions["col"].append("down")
-                    else:
-                        directions["col"].append("up")
+                    directions["col"].append("down" if pos[0] > current_pos[0] else "up")
             return directions
-        
-        directions = direction_towards_enemy(current_pos)
 
-        if len(shortest_path) > 1:
-            next_pos = shortest_path[1]
-            if (len(directions["row"]) > 0 or len(directions["col"]) > 0) and can_shoot:
-                if len(directions["col"]) == 0:
-                    if len(directions["row"]) > 1:
-                        return random.choice([('move', 'up'), ('move', 'down')])
-                    else:
-                        return 'shoot', directions["row"][0]               
-                elif len(directions["row"]) == 0:
-                    if len(directions["col"]) > 1:
-                        return random.choice([('move', 'left'), ('move', 'right')])
-                    else:
-                        return 'shoot', directions["col"][0] 
-                else:
-                    return 'shoot', directions["row"][0]
-            elif next_pos[0] < current_pos[0]:
+        def move_towards_position(current_pos, next_pos):
+            if next_pos[0] < current_pos[0]:
                 return 'move', 'up'
             elif next_pos[0] > current_pos[0]:
                 return 'move', 'down'
             elif next_pos[1] < current_pos[1]:
                 return 'move', 'left'
             elif next_pos[1] > current_pos[1]:
-                return 'move', 'right'            
+                return 'move', 'right'
+
+        def shoot_towards_direction(directions):
+            if len(directions["col"]) == 0:
+                return 'shoot', directions["row"][0] if len(directions["row"]) > 0 else None
+            elif len(directions["row"]) == 0:
+                return 'shoot', directions["col"][0] if len(directions["col"]) > 0 else None
             else:
-                return random.choice([('move', 'up'), ('move', 'down'), ('move', 'left'), ('move', 'right')])                                                
+                return 'shoot', directions["row"][0]
+
+        directions = direction_towards_enemy(current_pos)
+        in_row_col, _ = self.enemy_in_row_or_col(current_pos, visible_world)
+
+        if len(shortest_path) > 1:
+            next_pos = shortest_path[1]
+
+            if (len(directions["row"]) > 0 or len(directions["col"]) > 0) and can_shoot and in_row_col:
+                return shoot_towards_direction(directions)
+            else:
+                return move_towards_position(current_pos, next_pos)
         else:
             return random.choice([('move', 'up'), ('move', 'down'), ('move', 'left'), ('move', 'right')])
+    
+    def enemy_in_row_or_col(self, current_pos, visible_world):
+        def no_walls_between_positions(pos1, pos2, visible_world):
+            def is_valid_position(pos):
+                return 0 <= pos[0] < len(visible_world) and 0 <= pos[1] < len(visible_world[0])
+
+            if pos1[0] == pos2[0]:
+                start_col = min(pos1[1], pos2[1])
+                end_col = max(pos1[1], pos2[1])
+                return all(is_valid_position((pos1[0], col)) and visible_world[pos1[0]][col] != 'W' for col in range(start_col + 1, end_col))
+            elif pos1[1] == pos2[1]:
+                start_row = min(pos1[0], pos2[0])
+                end_row = max(pos1[0], pos2[0])
+                return all(is_valid_position((row, pos1[1])) and visible_world[row][pos1[1]] != 'W' for row in range(start_row + 1, end_row))
+            else:
+                return False
+
+        for pos in self.knowledge_base["enemy_agent_positions"]:
+            if pos[0] == current_pos[0] and no_walls_between_positions(current_pos, pos, visible_world):
+                return True, "row"
+            elif pos[1] == current_pos[1] and no_walls_between_positions(current_pos, pos, visible_world):
+                return True, "col"
+        return False, None
+
     
     def update_enemy_agent_positions(self, visible_world, position):
         memory_enemies = self.get_positions_from_world_knowledge(ASCII_TILES[ENEMY + "_agent"]) + \
@@ -289,7 +308,7 @@ class Agent:
         elif self.knowledge_base["guarding_agent_position"] is None or not self.knowledge_base["guarding_agent_position"] in memory_agents:
             my_flags = self.get_positions_from_world_knowledge(ASCII_TILES[MY + "_flag"])
 
-            if my_flags:
+            if my_flags and len(memory_agents)>0:
                 distance = [abs(pos[0]-my_flags[0][0]) + 
                             abs(pos[1]-my_flags[0][1])
                             for pos in memory_agents]
