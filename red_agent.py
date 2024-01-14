@@ -191,19 +191,6 @@ class Agent:
             return []
 
     def get_action_and_direction(self, current_pos, shortest_path, can_shoot):
-        def is_enemy_in_next_row_or_col(current_pos):
-            directions = {"left":False, "right":False, "up":False, "down":False}
-            for pos in self.knowledge_base["enemy_agent_positions"]:
-                if pos[0] + 1 == current_pos[0]:
-                    directions["right"] = True
-                elif pos[0] - 1 == current_pos[0]:
-                    directions["left"] = True
-                elif pos[1] + 1 == current_pos[0]:
-                    directions["down"] = True
-                elif pos[1] - 1 == current_pos[0]:
-                    directions["up"] = True
-            return directions
-
         def direction_towards_enemy(current_pos):
             directions = {"row":[], "col":[]}
             for pos in self.knowledge_base["enemy_agent_positions"]:
@@ -220,7 +207,7 @@ class Agent:
             return directions
         
         directions = direction_towards_enemy(current_pos)
-        next_directions = is_enemy_in_next_row_or_col(current_pos)
+
 
         if len(shortest_path) > 1:
             next_pos = shortest_path[1]
@@ -237,31 +224,16 @@ class Agent:
                         return 'shoot', directions["col"][0] 
                 else:
                     return 'shoot', directions["row"][0]
-                
             elif next_pos[0] < current_pos[0]:
-                if next_directions['up']:
-                    return random.choice([('move', 'left'), ('move', 'right')])
-                else:
-                    return 'move', 'up'
+                return 'move', 'up'
             elif next_pos[0] > current_pos[0]:
-                if next_directions['down']:
-                    return random.choice([('move', 'left'), ('move', 'right')])
-                else:
-                    return 'move', 'down'
+                return 'move', 'down'
             elif next_pos[1] < current_pos[1]:
-                if next_directions['left']:
-                    return random.choice([('move', 'up'), ('move', 'down')])
-                else:
-                    return 'move', 'left'
+                return 'move', 'left'
             elif next_pos[1] > current_pos[1]:
-                if next_directions['right']:
-                    return random.choice([('move', 'up'), ('move', 'down')])
-                else:
-                    return 'move', 'right'
-            
+                return 'move', 'right'            
             else:
-                return random.choice([('move', 'up'), ('move', 'down'), ('move', 'left'), ('move', 'right')])
-                                                
+                return random.choice([('move', 'up'), ('move', 'down'), ('move', 'left'), ('move', 'right')])                                                
         else:
             return random.choice([('move', 'up'), ('move', 'down'), ('move', 'left'), ('move', 'right')])
     
