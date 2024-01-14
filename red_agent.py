@@ -284,7 +284,7 @@ class Agent:
     def update_guarding_agent_position(self, visible_world, position):
         memory_agents = self.get_positions_from_world_knowledge(ASCII_TILES[MY + "_agent"])
         print("broj agenata: " + str(len(memory_agents)))
-        if len(memory_agents) == 1:
+        if len(memory_agents) <= 1:
             self.knowledge_base["guarding_agent_position"] = None
         elif self.knowledge_base["guarding_agent_position"] is None or not self.knowledge_base["guarding_agent_position"] in memory_agents:
             my_flags = self.get_positions_from_world_knowledge(ASCII_TILES[MY + "_flag"])
