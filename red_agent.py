@@ -237,25 +237,22 @@ class Agent:
             return random.choice([('move', 'up'), ('move', 'down'), ('move', 'left'), ('move', 'right')])
     
     def enemy_in_row_or_col(self, current_pos, visible_world):
-        def no_walls_between_positions(pos1, pos2, visible_world):
-            def is_valid_position(pos):
-                return 0 <= pos[0] < len(visible_world) and 0 <= pos[1] < len(visible_world[0])
-
+        def no_walls_between_positions(pos1, pos2):
             if pos1[0] == pos2[0]:
                 start_col = min(pos1[1], pos2[1])
                 end_col = max(pos1[1], pos2[1])
-                return all(is_valid_position((pos1[0], col)) and visible_world[col][pos1[0]] != ASCII_TILES["wall"] for col in range(start_col + 1, end_col))
+                return all(self.knowledge_base["world_knowledge"][pos1[0]][col] != ASCII_TILES["wall"] for col in range(start_col + 1, end_col))
             elif pos1[1] == pos2[1]:
                 start_row = min(pos1[0], pos2[0])
                 end_row = max(pos1[0], pos2[0])
-                return all(is_valid_position((row, pos1[1])) and visible_world[pos1[1]][row] != ASCII_TILES["wall"] for row in range(start_row + 1, end_row))
+                return all(self.knowledge_base["world_knowledge"][row][pos1[1]] != ASCII_TILES["wall"] for row in range(start_row + 1, end_row))
             else:
                 return False
 
-        for pos in self.knowledge_base["enemy_agent_positions"]:
-            if pos[0] == current_pos[0] and no_walls_between_positions(current_pos, pos, visible_world):
+        for pos in self.get_positions_from_visible_world(visible_world, current_pos, ASCII_TILES[ENEMY + "_agent"]):
+            if pos[0] == current_pos[0] and no_walls_between_positions(current_pos, pos):
                 return True, "row"
-            elif pos[1] == current_pos[1] and no_walls_between_positions(current_pos, pos, visible_world):
+            elif pos[1] == current_pos[1] and no_walls_between_positions(current_pos, pos):
                 return True, "col"
         return False, None
 
@@ -306,9 +303,6 @@ class Agent:
         print("broj agenata: " + str(len(memory_agents)))
         if len(memory_agents) < 2:
             self.knowledge_base["guarding_agent_position"] = None
-            for key, value in self.knowledge_base["target_positions"].items():
-                if value in self.knowledge_base["my_flag_position"]:
-                    self.knowledge_base[key.replace("pos", "sign")] = ASCII_TILES["empty"]
         elif self.knowledge_base["guarding_agent_position"] is None or not self.knowledge_base["guarding_agent_position"] in memory_agents:
             my_flags = self.get_positions_from_world_knowledge(ASCII_TILES[MY + "_flag"])
 
@@ -373,5 +367,8 @@ class Agent:
         if reason == "died":
             x, y = self.position
             self.knowledge_base["world_knowledge"][x][y] = ASCII_TILES["empty"]
+            for key in self.knowledge_base["target_positions"].keys():
+                if "sign" in key:
+                    self.knowledge_base["target_positions"][key] = ASCII_TILES["wall"]
             self.write_knowledge_base()
             print(self.color, self.index, "died")
