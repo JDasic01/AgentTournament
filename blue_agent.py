@@ -196,12 +196,26 @@ class Agent:
             return []
 
     def get_action_and_direction(self, current_pos, shortest_path, can_shoot, visible_world):
+        def no_walls_between_positions(pos1, pos2):
+            if pos1[0] == pos2[0]:
+                start_col = min(pos1[1], pos2[1])
+                end_col = max(pos1[1], pos2[1])
+                return all(self.knowledge_base["world_knowledge"][pos1[0]][col] != ASCII_TILES["wall"] for col in range(start_col, end_col))
+            elif pos1[1] == pos2[1]:
+                start_row = min(pos1[0], pos2[0])
+                end_row = max(pos1[0], pos2[0])
+                return all(self.knowledge_base["world_knowledge"][row][pos1[1]] != ASCII_TILES["wall"] for row in range(start_row, end_row))
+            else:
+                return False
+        
         def direction_towards_enemy(current_pos):
             directions = {"row": [], "col": []}
-            for pos in self.knowledge_base["enemy_agent_positions"]:
-                if pos[0] == current_pos[0]:
+            visible_enemies = self.get_positions_from_visible_world(visible_world, current_pos, ASCII_TILES[ENEMY + "_agent"]) + \
+                self.get_positions_from_visible_world(visible_world, current_pos, ASCII_TILES[ENEMY + "_agent_f"])
+            for pos in visible_enemies:
+                if pos[0] == current_pos[0] and no_walls_between_positions(current_pos, pos):
                     directions["row"].append("right" if pos[1] > current_pos[1] else "left")
-                elif pos[1] == current_pos[1]:
+                elif pos[1] == current_pos[1] and no_walls_between_positions(current_pos, pos):
                     directions["col"].append("down" if pos[0] > current_pos[0] else "up")
             return directions
 
@@ -224,38 +238,16 @@ class Agent:
                 return 'shoot', directions["row"][0]
 
         directions = direction_towards_enemy(current_pos)
-        in_row_col, _ = self.enemy_in_row_or_col(current_pos, visible_world)
 
         if len(shortest_path) > 1:
             next_pos = shortest_path[1]
 
-            if (len(directions["row"]) > 0 or len(directions["col"]) > 0) and can_shoot and in_row_col:
+            if (len(directions["row"]) > 0 or len(directions["col"]) > 0) and can_shoot:
                 return shoot_towards_direction(directions)
             else:
                 return move_towards_position(current_pos, next_pos)
         else:
             return random.choice([('move', 'up'), ('move', 'down'), ('move', 'left'), ('move', 'right')])
-    
-    def enemy_in_row_or_col(self, current_pos, visible_world):
-        def no_walls_between_positions(pos1, pos2):
-            if pos1[0] == pos2[0]:
-                start_col = min(pos1[1], pos2[1])
-                end_col = max(pos1[1], pos2[1])
-                return all(self.knowledge_base["world_knowledge"][pos1[0]][col] != ASCII_TILES["wall"] for col in range(start_col + 1, end_col))
-            elif pos1[1] == pos2[1]:
-                start_row = min(pos1[0], pos2[0])
-                end_row = max(pos1[0], pos2[0])
-                return all(self.knowledge_base["world_knowledge"][row][pos1[1]] != ASCII_TILES["wall"] for row in range(start_row + 1, end_row))
-            else:
-                return False
-
-        for pos in self.get_positions_from_visible_world(visible_world, current_pos, ASCII_TILES[ENEMY + "_agent"]):
-            if pos[0] == current_pos[0] and no_walls_between_positions(current_pos, pos):
-                return True, "row"
-            elif pos[1] == current_pos[1] and no_walls_between_positions(current_pos, pos):
-                return True, "col"
-        return False, None
-
     
     def update_enemy_agent_positions(self, visible_world, position):
         memory_enemies = self.get_positions_from_world_knowledge(ASCII_TILES[ENEMY + "_agent"]) + \
@@ -286,8 +278,7 @@ class Agent:
     def update_my_flag_position(self, visible_world, position):
         memory_flags = self.get_positions_from_world_knowledge(ASCII_TILES[MY + "_flag"])
         
-        visible_flags = self.get_positions_from_visible_world(visible_world, position, ASCII_TILES[MY + "_flag"]) + \
-            self.get_positions_from_visible_world(visible_world, position, ASCII_TILES[ENEMY + "_agent_f"])
+        visible_flags = self.get_positions_from_visible_world(visible_world, position, ASCII_TILES[MY + "_flag"])
 
         if visible_flags:
             self.knowledge_base["my_flag_position"] = visible_flags
